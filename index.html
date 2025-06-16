@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Narrative Isomorphism</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+        .mono {
+            font-family: 'Roboto Mono', monospace;
+        }
+        .card {
+            background-color: white;
+            border-radius: 0.75rem;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.02);
+            padding: 1.5rem;
+        }
+        .result-box {
+            word-break: break-all;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="max-w-7xl mx-auto">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-800">Narrative Isomorphism</h1>
+            <p class="mt-2 text-lg text-gray-500">This is not compression. This is translation.</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Input Section -->
+            <div class="card">
+                <h2 class="text-2xl font-semibold text-gray-700 mb-4">The Clumsy Expression</h2>
+                <textarea id="input-text" class="w-full h-64 p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:outline-none mono" placeholder="Enter verbose text here... a repetitive text, a very repetitive text. A text that repeats itself. A repetitive text, a very repetitive text. A text that repeats itself."></textarea>
+                <button id="translate-button" class="mt-4 w-full bg-gray-800 text-white font-bold py-3 rounded-md hover:bg-gray-900 transition-colors">Translate</button>
+            </div>
+
+            <!-- Output Section -->
+            <div class="card space-y-6">
+                <h2 class="text-2xl font-semibold text-gray-700">The Generative Truth</h2>
+                
+                <!-- Stats -->
+                <div id="stats-output" class="flex justify-around text-center">
+                    <div>
+                        <p class="text-sm text-gray-500">Original Length</p>
+                        <p id="original-length" class="text-2xl font-bold mono">-</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-500">Final Length</p>
+                        <p id="final-length" class="text-2xl font-bold mono">-</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-500">Efficiency</p>
+                        <p id="ratio" class="text-2xl font-bold mono">-</p>
+                    </div>
+                </div>
+
+                <!-- Dictionary -->
+                <div>
+                    <h3 class="font-semibold text-gray-600 mb-2">The Grammar (Dictionary)</h3>
+                    <div id="dictionary-output" class="p-3 bg-gray-50 border rounded-md result-box mono text-sm"></div>
+                </div>
+
+                <!-- Abstract -->
+                <div>
+                    <h3 class="font-semibold text-gray-600 mb-2">The Abstract</h3>
+                    <div id="abstract-output" class="p-3 bg-gray-50 border rounded-md result-box mono text-sm"></div>
+                </div>
+
+                <!-- Reconstitution -->
+                 <div>
+                    <h3 class="font-semibold text-gray-600 mb-2">Reconstitution</h3>
+                    <div id="reconstitution-output" class="p-3 bg-gray-50 border rounded-md result-box mono text-sm text-gray-400 italic">Decompress to verify...</div>
+                    <button id="decompress-button" class="mt-2 w-full bg-white border border-gray-300 text-gray-700 font-bold py-2 rounded-md hover:bg-gray-50 transition-colors hidden">Reconstitute</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const inputEl = document.getElementById('input-text');
+            const translateBtn = document.getElementById('translate-button');
+            const decompressBtn = document.getElementById('decompress-button');
+
+            const originalLengthEl = document.getElementById('original-length');
+            const finalLengthEl = document.getElementById('final-length');
+            const ratioEl = document.getElementById('ratio');
+            const dictionaryEl = document.getElementById('dictionary-output');
+            const abstractEl = document.getElementById('abstract-output');
+            const reconstitutionEl = document.getElementById('reconstitution-output');
+
+            let compressedData = null;
+
+            // Use Unicode's Private Use Area for sigils. They are unlikely to be in input text.
+            const SIGIL_START = 0xE000;
+            let sigilCounter = 0;
+
+            const getNextSigil = () => String.fromCharCode(SIGIL_START + sigilCounter++);
+
+            const findBestMotif = (text) => {
+                let bestMotif = '';
+                let maxSavings = 0;
+
+                // We only look for motifs that provide a net saving.
+                for (let len = text.length / 2; len > 1; len--) {
+                    if (len <= bestMotif.length) break;
+                    const counts = {};
+                    for (let i = 0; i <= text.length - len; i++) {
+                        const sub = text.substring(i, i + len);
+                        counts[sub] = (counts[sub] || 0) + 1;
+                    }
+
+                    for (const motif in counts) {
+                        const freq = counts[motif];
+                        if (freq > 1) {
+                            // Savings = (what you remove) - (what you add)
+                            // Remove: (freq * motif.length)
+                            // Add: (freq * 1 (sigil)) + (1 (sigil) + 1 (delimiter) + motif.length)
+                            const savings = (freq * motif.length) - (freq + motif.length + 2);
+                            if (savings > maxSavings) {
+                                maxSavings = savings;
+                                bestMotif = motif;
+                            }
+                        }
+                    }
+                }
+                return bestMotif;
+            };
+
+            const translate = () => {
+                let currentText = inputEl.value;
+                const dictionary = {};
+                sigilCounter = 0;
+
+                while (true) {
+                    const motif = findBestMotif(currentText);
+                    if (!motif) {
+                        break; // No more profitable substitutions
+                    }
+
+                    const sigil = getNextSigil();
+                    dictionary[sigil] = motif;
+                    
+                    // Use a regex for global replacement
+                    const escapedMotif = motif.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    currentText = currentText.replace(new RegExp(escapedMotif, 'g'), sigil);
+                }
+                
+                compressedData = { dictionary, abstract: currentText };
+                updateUI();
+            };
+            
+            const decompress = () => {
+                if (!compressedData) return;
+                let text = compressedData.abstract;
+                const dictEntries = Object.entries(compressedData.dictionary).reverse();
+
+                for (const [sigil, motif] of dictEntries) {
+                     text = text.replace(new RegExp(sigil, 'g'), motif);
+                }
+                
+                reconstitutionEl.textContent = text;
+                reconstitutionEl.classList.remove('text-gray-400', 'italic');
+            };
+
+            const updateUI = () => {
+                const originalText = inputEl.value;
+                const dictString = Object.entries(compressedData.dictionary)
+                    .map(([s, m]) => `"${s}" ↦ "${m}"`).join('\n');
+                
+                const dictForLength = Object.entries(compressedData.dictionary)
+                    .map(([s, m]) => `${s}↦${m}`).join('');
+
+                const finalLength = dictForLength.length + compressedData.abstract.length;
+                const ratio = originalText.length > 0 ? (100 * (1 - finalLength / originalText.length)).toFixed(2) : 0;
+
+                originalLengthEl.textContent = originalText.length;
+                finalLengthEl.textContent = finalLength;
+                ratioEl.textContent = `${ratio}%`;
+                
+                dictionaryEl.innerHTML = dictString.replace(/\n/g, '<br>');
+                abstractEl.textContent = compressedData.abstract;
+
+                reconstitutionEl.textContent = 'Decompress to verify...';
+                reconstitutionEl.classList.add('text-gray-400', 'italic');
+                decompressBtn.classList.remove('hidden');
+            };
+
+            translateBtn.addEventListener('click', translate);
+            decompressBtn.addEventListener('click', decompress);
+        });
+    </script>
+</body>
+</html>
